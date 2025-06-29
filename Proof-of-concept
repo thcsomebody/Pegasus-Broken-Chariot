@@ -1,0 +1,29 @@
+This code builds on concepts from Amnesty International’s Mobile Verification Toolkit (MVT) and Kaspersky’s self-check scripts, 
+as outlined in the previous blueprint. It’s a simplified, proof-of-concept script designed to run on a Linux/macOS system, 
+analyzing device backups or logs for potential Pegasus traces.
+Note that this is not a complete antivirus Pegasus’s complexity requires ongoing updates, expert reverse-engineering, and real-world testing beyond this scope.
+
+Dependencies: 
+
+Python 3, libimobiledevice (for iOS), adb (for Android), and MVT (optional for enhanced analysis).
+
+- Setup: 
+Install dependencies on a Linux/macOS system. For iOS, ensure libimobiledevice is set up to access backups.
+For Android, ensure adb is configured.
+
+- Data: 
+Requires an iOS backup (unencrypted) or Android device connected via USB for log extraction.
+
+How to Use
+
+1. Setup:
+   - Install dependencies: pip install requests, sudo apt install libimobiledevice-utils (for iOS), sudo apt install adb (for Android).
+   - For iOS, create an unencrypted backup using idevicebackup2 backup --full /path/to/backup.
+   - For Android, connect the device via USB with debugging enabled.
+2. Run the Script:
+   - For iOS: python3 pegasus_detector.py --ios-backup /path/to/backup
+   - For Android: python3 pegasus_detector.py --android
+3. Output: Results are logged to pegasus_scan_log.txt and printed to the console.
+
+This is a foundation, not a production-ready antivirus. 
+For high-risk users, combine it with tools like MVT and consult experts
