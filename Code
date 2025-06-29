@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import json
+import re
+import subprocess
+import argparse
+from datetime import datetime
+import requests
+from pathlib import Path
+
+# Simulated database of known Pegasus indicators (based on public research)
+PEGASUS_INDICATORS = {
+    "domains": [
+        ".*\\.getu\.info",
+        ".*\\.mooo\\.com",
+        ".*\\.freewww\\.biz",
+        # Add more known Pegasus-related domains from Citizen Lab/Amnesty reports
+    ],
+    "files": [
+        "/private/var/db/launchd.db/com.apple.launchd/.*",
+        "/private/var/tmp/.*\\.tmp",
+        # Add more suspicious file paths from Kaspersky/Amnesty findings
+    ],
+    "processes": [
+        "powerlogd",
+        "stickyd",
+        # Add known Pegasus-related process names
+    ]
+}
+
+# Log file to store analysis results
+LOG_FILE = "pegasus_scan_log.txt"
+
+def log_message(message):
+    """Log messages to file and console."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {message}\n")
+    print(f"[{timestamp}] {message}")
+
+def check_dependencies():
+    """Verify required tools are installed."""
+    tools = ["idevicebackup2"] if sys.platform in ["linux", "darwin"] else []
+    tools.append("adb")
+    for tool in tools:
+        if subprocess.run(["which", tool], capture_output=True).returncode != 0:
+            log_message(f"Error: {tool} not found. Please install it.")
+            sys.exit(1)
+
+def analyze_ios_backup(backup_path):
+    """Analyze iOS backup for Pegasus indicators."""
+    log_message("Starting iOS backup analysis...")
+    findings = []
+
+    # Check for suspicious files in backup
+    for root, _, files in os.walk(backup_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            for pattern in PEGASUS_INDICATORS["files"]:
+                if re.match(pattern, file_path):
+                    findings.append(f"Suspicious file found: {file_path}")
+                    log_message(f"Suspicious file: {file_path}")
+
+    # Check Shutdown.log for anomalies (inspired by Kaspersky)
+    shutdown_log = os.path.join(backup_path, "private/var/mobile/Library/Logs/Shutdown.log")
+    if os.path.exists(shutdown_log):
+        with open(shutdown_log, "r", errors="ignore") as f:
+            content = f.read()
+            if "stickyd" in content.lower() or "reboot impeded" in content.lower():
+                findings.append("Potential Pegasus trace in Shutdown.log")
+                log_message("Pegasus trace in Shutdown.log")
+
+    return findings
+
+def analyze_android_logs():
+    """Analyze Android device logs via adb for Pegasus indicators."""
+    log_message("Starting Android log analysis...")
+    findings = []
+
+    try:
+        # Pull system logs
+        logcat = subprocess.check_output(["adb", "logcat", "-d"], text=True)
+        for pattern in PEGASUS_INDICATORS["processes"]:
+            if re.search(pattern, logcat, re.IGNORECASE):
+                findings.append(f"Suspicious process in logcat: {pattern}")
+                log_message(f"Suspicious process: {pattern}")
+
+        # Check network connections
+        netstat = subprocess.check_output(["adb", "shell", "netstat"], text=True)
+        for domain in PEGASUS_INDICATORS["domains"]:
+            if re.search(domain, netstat):
+                findings.append(f"Suspicious network connection: {domain}")
+                log_message(f"Suspicious connection: {domain}")
+
+    except subprocess.CalledProcessError as e:
+        log_message(f"Error accessing Android logs: {e}")
+        return []
+
+    return findings
+
+def check_network_traffic():
+    """Check for connections to known Pegasus domains (simplified)."""
+    log_message("Checking network traffic...")
+    findings = []
+    try:
+        # Simulate network traffic check (requires root or advanced setup in practice)
+        response = requests.get("http://ip-api.com/json", timeout=5).json()
+        log_message(f"Network check: IP {response.get('query')}, ISP: {response.get('isp')}")
+        # In a real tool, analyze DNS queries or packet captures for Pegasus domains
+        for domain in PEGASUS_INDICATORS["domains"]:
+            # Placeholder: Real implementation needs packet sniffing (e.g., Scapy)
+            findings.append(f"Network check incomplete: Requires packet capture for {domain}")
+    except requests.RequestException as e:
+        log_message(f"Network check failed: {e}")
+    return findings
+
+def main():
+    parser = argparse.ArgumentParser(description="Pegasus Spyware Detection Tool")
+    parser.add_argument("--ios-backup", help="Path to iOS backup directory")
+    parser.add_argument("--android", action="store_true", help="Analyze connected Android device")
+    args = parser.parse_args()
+
+    check_dependencies()
+    findings = []
+
+    if args.ios_backup:
+        findings.extend(analyze_ios_backup(args.ios_backup))
+    if args.android:
+        findings.extend(analyze_android_logs())
+    findings.extend(check_network_traffic())
+
+    if findings:
+        log_message("POSSIBLE PEGASUS INFECTION DETECTED!")
+        for finding in findings:
+            log_message(f"Finding: {finding}")
+    else:
+        log_message("No Pegasus indicators found. Device appears clean (limited detection).")
+
+    log_message("Scan complete. Check log file for details.")
+
+if __name__ == "__main__":
+    main()
